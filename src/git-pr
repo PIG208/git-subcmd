@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+set -e
+
+guess_remote() {
+	PR_REMOTE="$(git config --default origin --get branch.$PR_HEAD.remote )"
+	if [ -z "$(git show-ref --abbrev $PR_REMOTE/$PR_HEAD)" ]
+	then
+		git config --unset branch.$PR_HEAD.remote || true
+		echo ref $PR_REMOTE/$PR_HEAD does not exist
+		echo Try specifying the remote ref such as upstream/$PR_HEAD
+		exit
+	fi
+}
+
+_git_pr() {
+	V=$1
+
+	if [[ -z $V ]]
+	then
+		echo "Usage: git pr <ref>"
+		exit
+	fi
+	
+
+	STATUS=$(git status --porcelain --untracked-files=no)
+	if [[ -n $STATUS && -z "$FORCED" ]]
+	then
+		echo "Aborting. The following changes might be overwrriten by a hard reset:"
+		echo "$STATUS"
+		exit
+	fi
+
+	if [[ $V != */* ]]
+	then
+	 	# Guessing that the ref is a head
+		PR_HEAD=$V
+		PR_MERGE=refs/heads/$PR_HEAD
+		guess_remote
+	elif [[ $V == refs/* ]] ;
+	then
+		PR_HEAD=${V#*/*/}
+		PR_MERGE=$V
+		guess_remote
+	else
+		PR_REMOTE=${V%/*}
+		PR_HEAD=${V#*/}
+		PR_MERGE=refs/heads/$PR_HEAD
+		if [ -z $(git config branch.$PR_HEAD.remote) ]
+		then
+		 	echo "Setting up branch $PR_HEAD to track $PR_REMOTE"
+			git config branch.$PR_HEAD.remote $PR_REMOTE
+		fi
+	fi
+	PR_REMOTE_REF=refs/remotes/$PR_REMOTE/$PR_HEAD
+	git show-ref --verify $PR_REMOTE_REF > /dev/null
+	git reset --hard $PR_REMOTE_REF
+	git config branch.main.remote $PR_REMOTE
+	git config branch.main.merge $PR_MERGE
+	echo "Tracking $PR_REMOTE_REF."
+	echo "branch.main.remote =  $PR_REMOTE"
+	echo "branch.main.merge  =  $PR_MERGE"
+}
+
+
+_git_pr $@

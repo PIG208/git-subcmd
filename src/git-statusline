@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -e
+
+_git_statusline() {
+	ref=$(git rev-parse --abbrev-ref @{upstream} 2> /dev/null)
+	if [[ -n $ref ]]
+	then
+		echo tracking $ref
+	fi
+}
+
+_git_statusline
+
